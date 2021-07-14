@@ -30,10 +30,45 @@ dev.off()
 sce <- FindNeighbors(sce, dims = 1:15)
 sce <- FindClusters(sce, resolution = 0.6)
 table(sce@meta.data$RNA_snn_res.0.6)
-#聚类成了7个cluster
+#聚类成了8个cluster
 #使用t—SNE进行可视化
 set.seed(2021)
 sce <- RunTSNE(object = sce, dims = 1:15, do.fast = TRUE)
 pdf("result/tsne.pdf")
 DimPlot(sce,reduction = "tsne",label=T)
 dev.off()
+#不同样本的细胞聚类情况
+table(sce@meta.data$seurat_clusters,sce@meta.data$orig.ident)
+pdf("result/tsne_by_orig.ident.pdf")
+DimPlot(sce,reduction = "tsne",label = T,split.by = "orig.ident")
+dev.off()
+#优化的可视化可以见4-1
+##########################################
+#寻找每个cluster的高变代表基因，并选取前5个，进行可视化
+# Marker 基因分析
+table(sce@meta.data$seurat_clusters)
+#寻找高变基因
+p <- list()
+for (i in unique(sce@meta.data$seurat_clusters)){
+  markers_df <- FindMarkers(object = sce, ident.1 = i, min.pct = 0.25)
+  print(x = head(markers_df))
+  markers_genes =  rownames(head(x = markers_df, n = 4))
+  p1 <- VlnPlot(object = sce, features =markers_genes,log =T,ncol = 2)
+  p[[i]][[1]] <- p1
+  p2 <- FeaturePlot(object = sce, features=markers_genes,ncol = 2)
+  p[[i]][[2]] <- p2
+  
+}
+p[[1]][[1]]
+p[[2]][[1]]
+p[[3]][[2]]
+
+sce.markers <- FindAllMarkers(object = sce, only.pos = TRUE, min.pct = 0.25,
+                              thresh.use = 0.25)
+DT::datatable(sce.markers)
+#热图可视化每个cluster的marker基因表达差异
+#热图可视化每个cluster的marker基因表达差异
+# dplyr包提供管道函数 %>%
+top10 <- sce.markers %>% group_by(cluster) %>% top_n(10,avg_log2FC)
+DoHeatmap(sce,top10$gene,size=0.5)+NoLegend()
+save(sce,sce.markers,file = 'result/sce_output_merge.Rdata')
